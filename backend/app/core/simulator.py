@@ -6,6 +6,7 @@ Background engine:
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import random
 import uuid
@@ -84,6 +85,7 @@ _net = 120.0
 _last_loki_ns = None
 _error_windows = defaultdict(deque)  # service -> timestamps
 _incident_cooldowns = {}  # (service, description) -> datetime
+logger = logging.getLogger(__name__)
 
 
 def _next_metric():
@@ -198,7 +200,7 @@ async def _emit_real_logs():
     try:
         logs, latest_ns = await fetch_loki_logs(since_ns=_last_loki_ns, limit=100)
     except Exception as exc:
-        print(f"[loki] {exc}")
+        logger.warning("[loki] %s", exc)
         return
 
     _last_loki_ns = latest_ns
@@ -215,7 +217,7 @@ async def _emit_metric():
         try:
             metric = await fetch_prometheus_metric(previous=previous)
         except Exception as exc:
-            print(f"[prometheus] {exc}")
+            logger.warning("[prometheus] %s", exc)
             metric = None
         if metric is None:
             metric = _next_metric()
@@ -240,7 +242,7 @@ async def start_simulator():
 
             tick += 1
         except Exception as exc:
-            print(f"[simulator error] {exc}")
+            logger.exception("[simulator error] %s", exc)
 
         await asyncio.sleep(SIMULATOR_TICK_SECONDS)
 

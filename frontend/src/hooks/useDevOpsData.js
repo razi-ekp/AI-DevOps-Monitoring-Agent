@@ -4,6 +4,10 @@ import axios from 'axios';
 const API = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const WS  = process.env.REACT_APP_WS_URL  || 'ws://localhost:8000/ws';
 
+function countActiveIncidents(items) {
+  return items.filter(i => i && i.status !== 'RESOLVED').length;
+}
+
 export function useApi() {
   const get  = useCallback((path, params) => axios.get(`${API}${path}`, { params }).then(r => r.data), []);
   const post = useCallback((path, body)   => axios.post(`${API}${path}`, body).then(r => r.data), []);
@@ -35,15 +39,28 @@ export function useDevOpsData() {
       get('/api/alerts', { limit: 50 }),
       get('/api/metrics/pods'),
     ]).then(([sum, met, log, inc, heal, alrt, pod]) => {
-      setSummary(sum);
+      const incomingIncidents = inc.incidents || [];
+      setSummary({
+        ...sum,
+        active_incidents: countActiveIncidents(incomingIncidents),
+      });
       setMetrics(met.metrics || []);
       setLogs(log.logs || []);
-      setIncidents(inc.incidents || []);
+      setIncidents(incomingIncidents);
       setHealing(heal.actions || []);
       setAlerts(alrt.alerts || []);
       setPods(pod.pods || {});
     }).catch(err => console.warn('Initial load error:', err));
   }, [get]);
+
+  useEffect(() => {
+    const activeCount = countActiveIncidents(incidents);
+    setSummary(prev => ({
+      ...prev,
+      active_incidents: activeCount,
+      system_health: activeCount === 0 ? 'HEALTHY' : prev.system_health,
+    }));
+  }, [incidents]);
 
   // WebSocket live updates
   useEffect(() => {
@@ -96,19 +113,12 @@ export function useDevOpsData() {
             setIncidents(prev => [data, ...prev].slice(0, 100));
             setSummary(prev => ({
               ...prev,
-              active_incidents: prev.active_incidents + 1,
               system_health: data.severity === 'CRITICAL' ? 'CRITICAL' : prev.system_health === 'CRITICAL' ? 'CRITICAL' : 'WARNING',
             }));
           }
 
           if (type === 'incident_update') {
             setIncidents(prev => prev.map(i => i.id === data.id ? { ...i, ...data } : i));
-            if (data.status === 'RESOLVED') {
-              setSummary(prev => {
-                const newActive = Math.max(0, prev.active_incidents - 1);
-                return { ...prev, active_incidents: newActive, system_health: newActive === 0 ? 'HEALTHY' : prev.system_health };
-              });
-            }
           }
 
           if (type === 'healing') {

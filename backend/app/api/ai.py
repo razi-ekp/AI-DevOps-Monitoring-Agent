@@ -1,5 +1,6 @@
 from typing import Optional
 import json
+import logging
 import os
 
 import httpx
@@ -9,6 +10,7 @@ from pydantic import BaseModel, Field
 from app.core.state import store
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class AnalyzeRequest(BaseModel):
@@ -37,25 +39,39 @@ async def _call_gemini(system: str, messages: list, max_tokens: int = 1024) -> s
     if not gemini_api_key:
         return "WARNING: GEMINI_API_KEY not set. Set it in your .env file to enable real AI analysis."
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:generateContent",
-            headers={
-                "x-goog-api-key": gemini_api_key,
-                "content-type": "application/json",
-            },
-            json={
-                "system_instruction": {
-                    "parts": [{"text": system}],
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:generateContent",
+                headers={
+                    "x-goog-api-key": gemini_api_key,
+                    "content-type": "application/json",
                 },
-                "contents": _to_gemini_contents(messages),
-                "generationConfig": {
-                    "maxOutputTokens": max_tokens,
+                json={
+                    "system_instruction": {
+                        "parts": [{"text": system}],
+                    },
+                    "contents": _to_gemini_contents(messages),
+                    "generationConfig": {
+                        "maxOutputTokens": max_tokens,
+                    },
                 },
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.TimeoutException as exc:
+        logger.warning("Gemini request timed out: %s", exc)
+        raise HTTPException(status_code=504, detail="AI analysis timed out. Please retry.")
+    except httpx.HTTPStatusError as exc:
+        status_code = exc.response.status_code if exc.response else "unknown"
+        logger.warning("Gemini HTTP error: status=%s", status_code)
+        raise HTTPException(status_code=502, detail="AI provider returned an error.")
+    except httpx.RequestError as exc:
+        logger.warning("Gemini network error: %s", exc)
+        raise HTTPException(status_code=502, detail="Failed to reach AI provider.")
+    except ValueError as exc:
+        logger.warning("Gemini response parse error: %s", exc)
+        raise HTTPException(status_code=502, detail="AI provider returned malformed data.")
 
     candidates = data.get("candidates", [])
     if not candidates:
