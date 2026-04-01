@@ -8,7 +8,6 @@ import MetricsChart        from './components/charts/MetricsChart';
 import PodStatus           from './components/charts/PodStatus';
 import LogsViewer          from './components/logs/LogsViewer';
 import AIInsightsPanel     from './components/ai/AIInsightsPanel';
-import AIChatbot           from './components/ai/AIChatbot';
 import IncidentTimeline    from './components/incidents/IncidentTimeline';
 import HealingActionsPanel from './components/incidents/HealingActionsPanel';
 import AlertsPanel         from './components/alerts/AlertsPanel';
@@ -92,9 +91,6 @@ export default function App() {
 
         </main>
       </div>
-
-      {/* Floating AI chatbot */}
-      <AIChatbot />
     </div>
   );
 }

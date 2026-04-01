@@ -42,7 +42,7 @@ devops-agent/
 │   │   │   ├── metrics.py        # GET /api/metrics
 │   │   │   ├── logs.py           # GET /api/logs
 │   │   │   ├── incidents.py      # GET/POST /api/incidents
-│   │   │   ├── ai.py             # POST /api/ai/chat, /analyze, GET /insights
+│   │   │   ├── ai.py             # POST /api/ai/analyze, GET /insights
 │   │   │   ├── alerts.py         # GET /api/alerts
 │   │   │   ├── healing.py        # GET/POST /api/healing
 │   │   │   └── ws.py             # WebSocket /ws
@@ -65,7 +65,7 @@ devops-agent/
 │   │       ├── dashboard/        # OverviewPanel, ControlPanel
 │   │       ├── charts/           # MetricsChart, PodStatus
 │   │       ├── logs/             # LogsViewer
-│   │       ├── ai/               # AIInsightsPanel, AIChatbot
+│   │       ├── ai/               # AIInsightsPanel
 │   │       ├── incidents/        # IncidentTimeline, HealingActionsPanel
 │   │       └── alerts/           # AlertsPanel
 │   ├── public/index.html
@@ -142,7 +142,7 @@ npm start
 
 | Variable | Required | Description |
 |---|---|---|
-| `GEMINI_API_KEY` | Yes (for AI features) | Gemini API key for chatbot + analysis |
+| `GEMINI_API_KEY` | Yes (for AI features) | Gemini API key for AI analysis |
 | `GEMINI_MODEL` | Optional | Gemini model name (default: `gemini-2.5-flash`) |
 | `USE_REAL_METRICS` / `USE_REAL_LOGS` | Optional | Enable Prometheus/Loki ingestion instead of simulator output |
 | `PROMETHEUS_URL` / `LOKI_URL` | Optional | Real telemetry provider endpoints |
@@ -153,7 +153,7 @@ npm start
 | `REACT_APP_API_URL` | Frontend | Backend URL (default: `http://localhost:8000`) |
 | `REACT_APP_WS_URL`  | Frontend | WebSocket URL (default: `ws://localhost:8000/ws`) |
 
-> **Without `GEMINI_API_KEY`:** The dashboard still runs with simulated data. The AI chatbot and deep analysis will return a warning message instead of real AI responses.
+> **Without `GEMINI_API_KEY`:** The dashboard still runs with simulated data. Deep analysis will return a warning message instead of real AI responses.
 
 Real integration quick start:
 1. Set `USE_REAL_METRICS=true` and `USE_REAL_LOGS=true`.
@@ -184,7 +184,7 @@ Real-data hookup guide:
 | **Auto-Healing** | Actions taken, why, and validation result |
 | **Alerts** | Real-time alert feed with Slack/Email channel status |
 | **Control Panel** | Toggle auto-heal ON/OFF, trigger manual actions |
-| **AI Chatbot** | Ask "What happened?", "Why is CPU high?", etc. |
+| **AI Insights** | Root-cause and remediation suggestions for high-severity incidents |
 
 ---
 
@@ -198,7 +198,6 @@ Real-data hookup guide:
 | GET | `/api/logs` | Filtered log entries |
 | GET | `/api/incidents` | Incident list |
 | POST | `/api/incidents/{id}/resolve` | Manually resolve incident |
-| POST | `/api/ai/chat` | AI chatbot conversation |
 | POST | `/api/ai/analyze` | Deep incident analysis |
 | GET | `/api/ai/insights` | AI insight cards |
 | GET | `/api/alerts` | Alert feed |
@@ -282,3 +281,4 @@ MIT — free to use, modify, and deploy.
 
 # For Running Full Project 
 .\start-windows.ps1
+

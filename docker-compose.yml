@@ -13,6 +13,8 @@ services:
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
     env_file:
       - ./backend/.env
+    volumes:
+      - ./run-logs:/app/run-logs
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]

@@ -1,46 +1,19 @@
-from typing import List, Optional
+from typing import Optional
 import json
 import os
 
 import httpx
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.state import store
 
 router = APIRouter()
 
-PROJECT_CONTEXT = """Project facts:
-- This repository is an AI DevOps Monitoring Agent, not a generic microservices application.
-- Backend: FastAPI application in backend/app with REST APIs and a WebSocket endpoint.
-- Frontend: React dashboard in frontend/src.
-- Core behavior: simulates infrastructure metrics, logs, incidents, alerts, and auto-healing actions in memory.
-- Dashboard areas shown in the UI include overview, metrics, pod status, logs, incidents, alerts, healing actions, AI insights, and an AI chatbot.
-- API areas in the backend include metrics, logs, incidents, alerts, healing, AI, and WebSocket streaming.
-- The simulator generates synthetic data unless the project is configured to connect to real systems.
-- Auto-heal actions are controlled by the backend and can be toggled on or off.
-- AI analysis uses Gemini when GEMINI_API_KEY is configured.
-
-Answering rules:
-- Answer only from the project facts above plus the current runtime state included in the prompt.
-- Do not invent services, gateways, databases, queues, authentication systems, or infrastructure that are not explicitly present in this project context.
-- If the user asks something not supported by the known project context, say that directly and then answer with what is known.
-- When asked to explain the project, describe this repo's dashboard, backend, simulator, alerts, incidents, and auto-healing features in simple terms.
-"""
-
-
-class ChatMessage(BaseModel):
-    role: str  # "user" | "assistant"
-    content: str
-
-
-class ChatRequest(BaseModel):
-    messages: List[ChatMessage]
-
 
 class AnalyzeRequest(BaseModel):
     incident_id: Optional[str] = None
-    log_sample: Optional[str] = None
+    log_sample: Optional[str] = Field(default=None, max_length=6000)
 
 
 def _to_gemini_contents(messages: list) -> list:
@@ -98,35 +71,6 @@ async def _call_gemini(system: str, messages: list, max_tokens: int = 1024) -> s
 
     finish_reason = candidates[0].get("finishReason", "UNKNOWN")
     return f"Gemini returned no text content. Finish reason: {finish_reason}"
-
-
-@router.post("/chat")
-async def chat(req: ChatRequest):
-    """AI chatbot endpoint that answers questions about the current system state."""
-    summary = store.get_summary()
-    recent_logs = store.get_logs(limit=10)
-    recent_incidents = store.get_incidents(limit=5)
-
-    system = f"""You are an expert AI DevOps assistant embedded in this project's monitoring dashboard.
-{PROJECT_CONTEXT}
-
-Current system state:
-- Health: {summary['system_health']}
-- CPU: {summary['cpu']:.1f}%  Memory: {summary['memory']:.1f}%  Network: {summary['network']:.0f} KB/s
-- Active incidents: {summary['active_incidents']}
-- Auto-heal: {'ON' if summary['auto_heal'] else 'OFF'}
-
-Recent incidents (last 5):
-{json.dumps(recent_incidents, indent=2)}
-
-Recent logs (last 10):
-{chr(10).join(log['message'] for log in recent_logs)}
-
-Answer concisely and technically. Use bullet points where helpful.
-"""
-    messages = [{"role": message.role, "content": message.content} for message in req.messages]
-    reply = await _call_gemini(system, messages)
-    return {"reply": reply}
 
 
 @router.post("/analyze")
