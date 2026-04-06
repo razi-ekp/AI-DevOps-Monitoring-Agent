@@ -20,6 +20,7 @@ from app.core.integrations import (
     fetch_loki_logs,
     fetch_prometheus_metric,
 )
+from app.core.notifications import send_incident_alert_email, should_send_email_for_alert
 from app.core.remediation import execute_action
 from app.core.state import store
 
@@ -78,6 +79,11 @@ INCIDENT_ERROR_BURST_WINDOW_SECONDS = max(10, int(os.getenv("INCIDENT_ERROR_BURS
 INCIDENT_COOLDOWN_SECONDS = max(10, int(os.getenv("INCIDENT_COOLDOWN_SECONDS", "300")))
 
 USE_REAL_AUTOHEAL = os.getenv("USE_REAL_AUTOHEAL", "false").strip().lower() in {"1", "true", "yes", "on"}
+ENABLE_METRIC_INCIDENTS = os.getenv("ENABLE_METRIC_INCIDENTS", "true").strip().lower() in {"1", "true", "yes", "on"}
+CPU_HIGH_THRESHOLD = float(os.getenv("INCIDENT_CPU_HIGH_THRESHOLD", "85"))
+CPU_CRITICAL_THRESHOLD = float(os.getenv("INCIDENT_CPU_CRITICAL_THRESHOLD", "90"))
+MEMORY_HIGH_THRESHOLD = float(os.getenv("INCIDENT_MEMORY_HIGH_THRESHOLD", "88"))
+MEMORY_CRITICAL_THRESHOLD = float(os.getenv("INCIDENT_MEMORY_CRITICAL_THRESHOLD", "90"))
 
 _cpu = 40.0
 _mem = 55.0
@@ -159,22 +165,87 @@ async def _emit_incident_from_log(entry: dict):
         "logs_analysis": f"Pattern: {INCIDENT_ERROR_BURST_COUNT}+ errors within {INCIDENT_ERROR_BURST_WINDOW_SECONDS}s",
         "alerts_sent": store.alert_channels,
     }
+    await _publish_incident_and_alert(incident)
+
+    if store.auto_heal:
+        asyncio.create_task(_heal(incident))
+
+
+async def _emit_incident_from_metric(metric: dict):
+    if not ENABLE_METRIC_INCIDENTS:
+        return
+
+    now = datetime.utcnow()
+    cpu = float(metric.get("cpu", 0) or 0)
+    memory = float(metric.get("memory", 0) or 0)
+
+    rule_key = None
+    severity = None
+    description = None
+
+    if cpu >= CPU_CRITICAL_THRESHOLD:
+        rule_key = "metric-cpu-critical"
+        severity = "CRITICAL"
+        description = f"Sustained high CPU usage detected at {cpu:.1f}%"
+    elif memory >= MEMORY_CRITICAL_THRESHOLD:
+        rule_key = "metric-memory-critical"
+        severity = "CRITICAL"
+        description = f"Sustained high memory usage detected at {memory:.1f}%"
+    elif cpu >= CPU_HIGH_THRESHOLD:
+        rule_key = "metric-cpu-high"
+        severity = "HIGH"
+        description = f"High CPU usage detected at {cpu:.1f}%"
+    elif memory >= MEMORY_HIGH_THRESHOLD:
+        rule_key = "metric-memory-high"
+        severity = "HIGH"
+        description = f"High memory usage detected at {memory:.1f}%"
+
+    if not rule_key:
+        return
+    if not _incident_allowed("platform", rule_key, now):
+        return
+
+    root_cause = (
+        "Infrastructure saturation is likely affecting workload latency and stability."
+        if severity == "CRITICAL"
+        else "Workload pressure is above normal baseline."
+    )
+    recommended_action = "scale" if cpu >= memory else "restart"
+    incident = {
+        "id": str(uuid.uuid4()),
+        "timestamp": now.isoformat(),
+        "service": "platform",
+        "severity": severity,
+        "description": description,
+        "status": "RESOLVING" if store.auto_heal else "ONGOING",
+        "confidence": round(random.uniform(78, 96), 1),
+        "root_cause": root_cause,
+        "recommended_action": recommended_action,
+        "logs_analysis": "Metric threshold policy trigger",
+        "alerts_sent": store.alert_channels,
+    }
+    await _publish_incident_and_alert(incident)
+
+    if store.auto_heal:
+        asyncio.create_task(_heal(incident))
+
+
+async def _publish_incident_and_alert(incident: dict):
     store.add_incident(incident)
     await broadcast({"type": "incident", "data": incident})
 
     alert = {
         "id": str(uuid.uuid4()),
-        "timestamp": now.isoformat(),
-        "severity": severity,
+        "timestamp": incident["timestamp"],
+        "severity": incident["severity"],
         "service": incident["service"],
         "message": incident["description"],
         "channels": store.alert_channels,
     }
     store.add_alert(alert)
     await broadcast({"type": "alert", "data": alert})
-
-    if store.auto_heal:
-        asyncio.create_task(_heal(incident))
+    if "email" in {ch.lower() for ch in store.alert_channels} and should_send_email_for_alert(incident["severity"]):
+        asyncio.create_task(send_incident_alert_email(alert=alert, incident=incident))
 
 
 async def _emit_simulated_log():
@@ -226,6 +297,7 @@ async def _emit_metric():
 
     store.add_metric(metric)
     await broadcast({"type": "metric", "data": metric})
+    await _emit_incident_from_metric(metric)
 
 
 async def start_simulator():
