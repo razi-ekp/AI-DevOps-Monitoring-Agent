@@ -136,6 +136,13 @@ npm install --legacy-peer-deps
 npm start
 ```
 
+Windows PowerShell note:
+```powershell
+cd "C:\Users\...\devops-agent\frontend"
+npm.cmd install --legacy-peer-deps
+npm.cmd start
+```
+
 ---
 
 ## 🔑 Environment Variables
@@ -279,6 +286,6 @@ collection = client.create_collection("runbooks")
 MIT — free to use, modify, and deploy.
 
 
-# For Running Full Project 
-.\start-windows.ps1
+# For Running Full Project (Windows)
+powershell -ExecutionPolicy Bypass -File .\start-windows.ps1
 

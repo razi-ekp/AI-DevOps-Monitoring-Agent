@@ -28,3 +28,13 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Local runtime/log/cache artifacts
+devopenv/
+run-logs/
+tmp/
+video_frames/
+pytest-cache-files-*/
+backend/pytest-cache-files-*/
+\{backend/
+/package-lock.json
