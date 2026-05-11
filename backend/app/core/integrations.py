@@ -5,7 +5,7 @@ Falls back gracefully when providers are unavailable.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone, timezone
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx

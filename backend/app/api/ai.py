@@ -4,9 +4,10 @@ import logging
 import os
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from slowapi.middleware import SlowAPIMiddleware
 
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Rate limiter: 5 requests per minute per IP
 limiter = Limiter(key_func=get_remote_address)
+router.state.limiter = limiter
 
 
 class AnalyzeRequest(BaseModel):
@@ -96,7 +98,8 @@ async def _call_gemini(system: str, messages: list, max_tokens: int = 1024) -> s
 
 
 @router.post("/analyze")
-async def analyze(req: AnalyzeRequest):
+@limiter.limit("5/minute")
+async def analyze(request: Request, req: AnalyzeRequest):
     """Deep AI analysis of a specific incident or log sample."""
     if req.incident_id:
         incident = None
@@ -130,7 +133,7 @@ async def get_insights():
     high = [incident for incident in incidents if incident.get("severity") == "HIGH"]
 
     insights = []
-    for incident in critical + high:
+    for incident in (critical + high)[:3]:
         # Generate real AI analysis for each incident
         analysis = await _call_gemini(
             system="You are an expert DevOps engineer. Analyze this incident and provide a one-sentence root cause and one-sentence recommended action.",
