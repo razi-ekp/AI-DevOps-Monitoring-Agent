@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -10,6 +11,9 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 from app.api import metrics, logs, incidents, ai, alerts, healing, ws
 from app.core.simulator import start_simulator
+from app.core.auth import verify_api_key
+from slowapi import Limiter
+from slowapi.middleware import SlowAPIMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -22,11 +26,19 @@ app = FastAPI(
     description="Autonomous DevOps monitoring with AI-driven analysis and auto-healing",
     version="1.0.0",
     lifespan=lifespan,
+    dependencies=[Depends(verify_api_key)],
 )
+
+# Add rate limiting middleware
+app.add_middleware(SlowAPIMiddleware)
+
+# Environment-driven CORS origins
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+cors_origins = [origin.strip() for origin in cors_origins]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

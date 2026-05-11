@@ -38,3 +38,9 @@ pytest-cache-files-*/
 backend/pytest-cache-files-*/
 \{backend/
 /package-lock.json
+
+# Log files
+*.log
+*.err.log
+*.out.log
+run-logs/

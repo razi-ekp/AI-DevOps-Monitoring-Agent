@@ -6,11 +6,17 @@ import os
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.state import store
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Rate limiter: 5 requests per minute per IP
+limiter = Limiter(key_func=get_remote_address)
 
 
 class AnalyzeRequest(BaseModel):
@@ -119,23 +125,34 @@ async def analyze(req: AnalyzeRequest):
 
 @router.get("/insights")
 async def get_insights():
-    """Return pre-computed AI insight cards for the dashboard."""
-    incidents = store.get_incidents(10)
+    incidents = store.get_incidents(50)
     critical = [incident for incident in incidents if incident.get("severity") == "CRITICAL"]
     high = [incident for incident in incidents if incident.get("severity") == "HIGH"]
 
     insights = []
-    for incident in (critical + high)[:3]:
-        insights.append(
-            {
-                "id": incident["id"],
-                "severity": incident["severity"],
-                "service": incident["service"],
-                "summary": incident["description"],
-                "root_cause": incident.get("root_cause", "Analyzing..."),
-                "recommended_action": incident.get("recommended_action", "Investigating..."),
-                "confidence": incident.get("confidence", 85),
-                "rag_match": f"incident #{hash(incident['description']) % 9000 + 1000}",
-            }
+    for incident in critical + high:
+        # Generate real AI analysis for each incident
+        analysis = await _call_gemini(
+            system="You are an expert DevOps engineer. Analyze this incident and provide a one-sentence root cause and one-sentence recommended action.",
+            messages=[{
+                "role": "user",
+                "content": f"Incident: {incident.get('description', '')}\nService: {incident.get('service', '')}\nSeverity: {incident.get('severity', '')}"
+            }],
+            max_tokens=200
         )
+
+        # Parse the response to extract root cause and action
+        lines = analysis.strip().split('\n') if analysis else []
+        root_cause = lines[0] if lines else "Analysis in progress..."
+        recommended_action = lines[1] if len(lines) > 1 else "Investigation ongoing..."
+
+        insights.append({
+            "id": incident["id"],
+            "severity": incident.get("severity"),
+            "service": incident.get("service"),
+            "root_cause": root_cause,
+            "recommended_action": recommended_action,
+            "confidence": incident.get("confidence", 85),
+        })
+
     return {"insights": insights}

@@ -140,7 +140,7 @@ def _incident_allowed(service: str, description: str, now: datetime) -> bool:
 
 
 async def _emit_incident_from_log(entry: dict):
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if entry["level"] not in {"ERROR", "CRITICAL"}:
         return
 
@@ -175,7 +175,7 @@ async def _emit_incident_from_metric(metric: dict):
     if not ENABLE_METRIC_INCIDENTS:
         return
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     cpu = float(metric.get("cpu", 0) or 0)
     memory = float(metric.get("memory", 0) or 0)
 
@@ -254,7 +254,7 @@ async def _emit_simulated_log():
     template = random.choice(LOG_TEMPLATES[level])
     entry = {
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "level": level,
         "service": service,
         "message": template(service),
@@ -347,7 +347,7 @@ async def _heal(incident: dict):
     result = random.choices(["RESOLVED", "RESOLVED", "ESCALATED"], weights=[70, 20, 10])[0]
     action_entry = {
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "incident_id": incident["id"],
         "service": incident["service"],
         "action": f"Auto: {action}",

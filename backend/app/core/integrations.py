@@ -5,7 +5,7 @@ Falls back gracefully when providers are unavailable.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timezone
 from typing import Optional
 
 import httpx
@@ -96,7 +96,7 @@ async def fetch_prometheus_metric(previous: Optional[dict] = None) -> Optional[d
 
     return {
         "id": f"metric-{datetime.now(timezone.utc).timestamp()}",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "cpu": round(cpu or 0.0, 2),
         "memory": round(memory or 0.0, 2),
         "network": round(network or 0.0, 2),

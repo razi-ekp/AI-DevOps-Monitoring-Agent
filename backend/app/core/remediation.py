@@ -8,7 +8,7 @@ import asyncio
 import os
 import uuid
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.core.state import store
 
@@ -41,7 +41,7 @@ def _guardrail_violation(service: str, action: str) -> str | None:
     if AUTOHEAL_ALLOWLIST and service not in AUTOHEAL_ALLOWLIST:
         return f"Service '{service}' is not in AUTOHEAL_SERVICE_ALLOWLIST."
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=1)
     while _ACTION_TIMELINE and _ACTION_TIMELINE[0] < cutoff:
         _ACTION_TIMELINE.popleft()
@@ -95,7 +95,7 @@ async def _execute_real_action(service: str, action: str) -> tuple[bool, str]:
         return code == 0, out or f"scaled to {AUTOHEAL_SCALE_REPLICAS}"
 
     if action == "flush-cache":
-        return False, "flush-cache requires service-specific runbook integration"
+        return await execute_flush_cache(service)
 
     return False, f"unknown action '{action}'"
 
@@ -113,7 +113,7 @@ async def execute_action(
     Execute (or simulate) a remediation action and persist it into store.
     """
     violation = _guardrail_violation(service, action)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if violation:
         result = "ESCALATED"
         validated = False
