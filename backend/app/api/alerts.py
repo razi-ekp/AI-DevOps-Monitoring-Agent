@@ -2,7 +2,7 @@ import logging
 import os
 import smtplib
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -53,7 +53,7 @@ async def send_test_alert(req: TestAlertRequest):
 
     alert = {
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "severity": severity,
         "service": req.service or "notifications",
         "message": req.message or "Manual test alert from dashboard",
@@ -86,7 +86,7 @@ async def send_test_email(req: TestEmailRequest):
 
     alert = {
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "severity": "INFO",
         "service": "notifications",
         "message": f"Test email sent to {target}",

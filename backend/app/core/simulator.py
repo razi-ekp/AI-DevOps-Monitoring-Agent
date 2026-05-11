@@ -11,7 +11,7 @@ import os
 import random
 import uuid
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.core.broadcaster import broadcast
 from app.core.integrations import (
@@ -101,7 +101,7 @@ def _next_metric():
     _net = max(0, _net + random.uniform(-20, 28))
     return {
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "cpu": round(_cpu, 2),
         "memory": round(_mem, 2),
         "network": round(_net, 2),

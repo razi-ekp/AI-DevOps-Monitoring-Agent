@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel, Field
@@ -44,7 +44,7 @@ async def inject_incident(req: InjectIncidentRequest):
 
     incident = {
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "service": req.service.strip(),
         "severity": severity,
         "description": req.description.strip(),
