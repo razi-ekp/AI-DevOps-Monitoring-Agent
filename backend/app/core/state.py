@@ -118,55 +118,6 @@ class StateStore:
         except Exception:
             return []
 
-    def get_healing_actions(self, limit: int = 50) -> List[dict]:
-        """Get last N healing actions (synchronous for compatibility)."""
-        try:
-            try:
-                loop = asyncio.get_running_loop()
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, self._get_list("healing_actions", 0, limit - 1))
-                    return future.result(timeout=5.0)
-            except RuntimeError:
-                return asyncio.run(self._get_list("healing_actions", 0, limit - 1))
-        except Exception:
-            return []
-
-    def get_alerts(self, limit: int = 50) -> List[dict]:
-        """Get last N alerts (synchronous for compatibility)."""
-        try:
-            try:
-                loop = asyncio.get_running_loop()
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, self._get_list("alerts", 0, limit - 1))
-                    return future.result(timeout=5.0)
-            except RuntimeError:
-                return asyncio.run(self._get_list("alerts", 0, limit - 1))
-        except Exception:
-            return []
-
-    def get_summary(self) -> dict:
-        """Get system summary (synchronous for compatibility)."""
-        try:
-            try:
-                loop = asyncio.get_running_loop()
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, self._get_list("incidents", 0, 9))
-                    incidents = future.result(timeout=5.0)
-            except RuntimeError:
-                incidents = asyncio.run(self._get_list("incidents", 0, 9))
-            
-            critical = sum(1 for inc in incidents if inc.get("severity") == "CRITICAL")
-            return {
-                "healthy": critical == 0,
-                "incidents": len(incidents),
-                "auto_heal": self.auto_heal,
-            }
-        except Exception:
-            return {"healthy": False, "incidents": 0, "auto_heal": self.auto_heal}
-
 
 # Global instance
 store = StateStore()
