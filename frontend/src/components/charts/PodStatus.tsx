@@ -1,8 +1,9 @@
 import { Card, StatusDot } from '../ui';
+import { PodStatusProps } from '../../types';
 
-const STATUS_COLOR = { Running: '#22c55e', Pending: '#fbbf24', CrashLoop: '#ef4444' };
+const STATUS_COLOR: Record<string, string> = { Running: '#22c55e', Pending: '#fbbf24', CrashLoop: '#ef4444' };
 
-export default function PodStatus({ pods }) {
+export default function PodStatus({ pods }: PodStatusProps) {
   const entries = Object.entries(pods);
 
   return (
@@ -14,22 +15,22 @@ export default function PodStatus({ pods }) {
           {entries.map(([name, pod]) => (
             <div key={name} className="pod-item">
               <div className="pod-name" title={name}>
-                {name.length > 14 ? name.slice(0, 14) + '…' : name}
+                {name.length > 14 ? `${name.slice(0, 14)}…` : name}
               </div>
               <div className="pod-status-row">
-                <StatusDot status={pod.status} />
-                <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: STATUS_COLOR[pod.status] || '#64748b' }}>
+                <StatusDot status={pod.status ?? ''} />
+                <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: STATUS_COLOR[pod.status ?? ''] || '#64748b' }}>
                   {pod.status}
                 </span>
-                {pod.restarts > 0 && (
+                {pod.restarts && (
                   <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: '#ef4444', marginLeft: 'auto' }}>
                     ↺{pod.restarts}
                   </span>
                 )}
               </div>
               <div className="pod-bar-wrap">
-                <PodBar label="CPU" value={pod.cpu} color="#22d3ee" />
-                <PodBar label="MEM" value={pod.memory} color="#a78bfa" />
+                <PodBar label="CPU" value={pod.cpu ?? 0} color="#22d3ee" />
+                <PodBar label="MEM" value={pod.memory ?? 0} color="#a78bfa" />
               </div>
             </div>
           ))}
@@ -39,7 +40,13 @@ export default function PodStatus({ pods }) {
   );
 }
 
-function PodBar({ label, value, color }) {
+interface PodBarProps {
+  label: string;
+  value: number;
+  color: string;
+}
+
+function PodBar({ label, value, color }: PodBarProps) {
   const pct = Math.min(100, Math.round(value || 0));
   const c = pct > 85 ? '#ef4444' : pct > 65 ? '#fbbf24' : color;
   return (

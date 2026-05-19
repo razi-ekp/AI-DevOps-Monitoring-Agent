@@ -1,7 +1,8 @@
 import { HealthBadge } from '../ui';
+import { OverviewPanelProps } from '../../types';
 
-export default function OverviewPanel({ summary }) {
-  const { system_health, services_monitored, active_incidents, cpu, memory, network, auto_heal } = summary;
+export default function OverviewPanel({ summary }: OverviewPanelProps) {
+  const { system_health, services_monitored, active_incidents, cpu = 0, memory = 0, network = 0, auto_heal = true } = summary;
 
   const stats = [
     {
@@ -18,13 +19,13 @@ export default function OverviewPanel({ summary }) {
     },
     {
       label: 'CPU Usage',
-      value: `${cpu?.toFixed(1) ?? 0}%`,
+      value: `${cpu.toFixed(1)}%`,
       sub: <MiniBar value={cpu} />,
       accent: cpu > 85 ? '#ef4444' : cpu > 65 ? '#fbbf24' : '#22d3ee',
     },
     {
       label: 'Memory Usage',
-      value: `${memory?.toFixed(1) ?? 0}%`,
+      value: `${memory.toFixed(1)}%`,
       sub: <MiniBar value={memory} color={memory > 85 ? '#ef4444' : memory > 65 ? '#fbbf24' : '#22c55e'} />,
       accent: memory > 85 ? '#ef4444' : memory > 65 ? '#fbbf24' : '#22c55e',
     },
@@ -45,7 +46,12 @@ export default function OverviewPanel({ summary }) {
   );
 }
 
-function MiniBar({ value = 0, color }) {
+interface MiniBarProps {
+  value?: number;
+  color?: string;
+}
+
+function MiniBar({ value = 0, color }: MiniBarProps) {
   const c = color || (value > 85 ? '#ef4444' : value > 65 ? '#fbbf24' : '#22d3ee');
   return (
     <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 2, height: 4, marginTop: 4, overflow: 'hidden' }}>

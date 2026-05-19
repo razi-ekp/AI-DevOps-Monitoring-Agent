@@ -2,7 +2,7 @@ import logging
 import os
 import smtplib
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@router.get("/")
+@router.get("")
 async def get_alerts(limit: int = Query(50, ge=1, le=200)):
     return {"alerts": store.get_alerts(limit)}
 
@@ -53,13 +53,13 @@ async def send_test_alert(req: TestAlertRequest):
 
     alert = {
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "severity": severity,
         "service": req.service or "notifications",
         "message": req.message or "Manual test alert from dashboard",
         "channels": [],
     }
-    store.add_alert(alert)
+    await store.add_alert(alert)
     await broadcast({"type": "alert", "data": alert})
     return {"ok": True, "alert": alert}
 
@@ -76,17 +76,17 @@ async def send_test_email(req: TestEmailRequest):
     try:
         await send_test_email_message(str(target), req.subject, req.message)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except smtplib.SMTPException as exc:
         logger.warning("SMTP error while sending test email: %s", exc)
-        raise HTTPException(status_code=502, detail=f"SMTP delivery failed: {exc}")
+        raise HTTPException(status_code=502, detail=f"SMTP delivery failed: {exc}") from exc
     except OSError as exc:
         logger.warning("SMTP network error while sending test email: %s", exc)
-        raise HTTPException(status_code=502, detail=f"SMTP connection failed: {exc}")
+        raise HTTPException(status_code=502, detail=f"SMTP connection failed: {exc}") from exc
 
     alert = {
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "severity": "INFO",
         "service": "notifications",
         "message": f"Test email sent to {target}",

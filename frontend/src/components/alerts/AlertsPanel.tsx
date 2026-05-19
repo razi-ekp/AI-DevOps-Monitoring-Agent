@@ -1,8 +1,9 @@
 import { Card, Badge, formatTime, truncate } from '../ui';
+import { Alert, AlertsPanelProps } from '../../types';
 
-const SEV_ICON = { CRITICAL: '[!]', HIGH: '[^]', MEDIUM: '[-]', LOW: '[i]', INFO: '[i]' };
+const SEV_ICON: Record<string, string> = { CRITICAL: '[!]', HIGH: '[^]', MEDIUM: '[-]', LOW: '[i]', INFO: '[i]' };
 
-export default function AlertsPanel({ alerts }) {
+export default function AlertsPanel({ alerts }: AlertsPanelProps) {
   const criticalCount = alerts.filter((a) => a.severity === 'CRITICAL').length;
   const highCount = alerts.filter((a) => a.severity === 'HIGH').length;
   const lastCritical = alerts.find((a) => a.severity === 'CRITICAL');
@@ -55,7 +56,12 @@ export default function AlertsPanel({ alerts }) {
   );
 }
 
-function ChannelBadge({ label, active }) {
+interface ChannelBadgeProps {
+  label: string;
+  active: boolean;
+}
+
+function ChannelBadge({ label, active }: ChannelBadgeProps) {
   return (
     <div
       style={{
@@ -76,7 +82,13 @@ function ChannelBadge({ label, active }) {
   );
 }
 
-function MiniStat({ label, value, tone }) {
+interface MiniStatProps {
+  label: string;
+  value: string;
+  tone: string;
+}
+
+function MiniStat({ label, value, tone }: MiniStatProps) {
   return (
     <div
       style={{

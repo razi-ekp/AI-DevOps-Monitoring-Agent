@@ -30,7 +30,7 @@ if (-not (Test-Path -LiteralPath 'node_modules')) {
         npm.cmd install --legacy-peer-deps --ignore-scripts
     }
 }
-npm.cmd start
+npm.cmd start -- --port 3000
 "@
 
 Start-Process powershell -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-NoExit", "-Command", $backendCommand

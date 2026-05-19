@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 import smtplib
 from email.message import EmailMessage
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger()
 
 _SEVERITY_ORDER = {
     "INFO": 0,
@@ -67,7 +68,7 @@ def should_send_email_for_alert(severity: str) -> bool:
 async def send_incident_alert_email(alert: dict, incident: dict | None = None) -> bool:
     recipient = os.getenv("ALERT_EMAIL_TO", "").strip()
     if not recipient:
-        logger.warning("Skipping email alert: ALERT_EMAIL_TO is not configured.")
+        logger.warning("skipping_email_alert", reason="missing_recipient")
         return False
 
     service = alert.get("service", "unknown-service")
@@ -92,12 +93,12 @@ async def send_incident_alert_email(alert: dict, incident: dict | None = None) -
 
     try:
         await asyncio.to_thread(_send_email_sync, recipient, subject, body)
-        logger.info("Alert email sent to %s for incident %s", recipient, incident_id)
+        logger.info("alert_email_sent", recipient=recipient, incident_id=incident_id)
         return True
     except ValueError as exc:
-        logger.warning("Skipping email alert due to config error: %s", exc)
+        logger.warning("skipping_email_alert", reason="config_error", error=str(exc), recipient=recipient, incident_id=incident_id)
     except smtplib.SMTPException as exc:
-        logger.warning("SMTP error while sending incident alert email: %s", exc)
+        logger.warning("smtp_error_sending_email", error=str(exc), recipient=recipient, incident_id=incident_id)
     except OSError as exc:
-        logger.warning("SMTP network error while sending incident alert email: %s", exc)
+        logger.warning("smtp_network_error_sending_email", error=str(exc), recipient=recipient, incident_id=incident_id)
     return False

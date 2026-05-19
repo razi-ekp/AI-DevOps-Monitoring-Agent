@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Query
+
 from app.core.state import store
 
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("")
 async def get_metrics(limit: int = Query(60, ge=1, le=300)):
     """Return the last N metric data points."""
     return {"metrics": store.get_metrics(limit)}

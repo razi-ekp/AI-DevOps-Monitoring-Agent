@@ -3,10 +3,10 @@ Simple WebSocket broadcaster.
 Maintains a set of active connections and fans out messages.
 """
 import json
-from typing import Set
+
 from fastapi import WebSocket
 
-_connections: Set[WebSocket] = set()
+_connections: set[WebSocket] = set()
 
 
 def register(ws: WebSocket):

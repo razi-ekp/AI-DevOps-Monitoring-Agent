@@ -1,19 +1,23 @@
-from fastapi import FastAPI, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
 import asyncio
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
+from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
+from app.api import ai, alerts, healing, incidents, logs, metrics, ws
+from app.core.auth import verify_api_key
+from app.core.logging_config import configure_logging
+from app.core.simulator import start_simulator
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+configure_logging()
 
-from app.api import metrics, logs, incidents, ai, alerts, healing, ws
-from app.core.simulator import start_simulator
-from app.core.auth import verify_api_key
-from slowapi import Limiter
-from slowapi.middleware import SlowAPIMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,8 +30,9 @@ app = FastAPI(
     description="Autonomous DevOps monitoring with AI-driven analysis and auto-healing",
     version="1.0.0",
     lifespan=lifespan,
-    dependencies=[Depends(verify_api_key)],
 )
+
+app.state.limiter = ai.limiter
 
 # Add rate limiting middleware
 app.add_middleware(SlowAPIMiddleware)
@@ -44,13 +49,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(metrics.router, prefix="/api/metrics", tags=["Metrics"])
-app.include_router(logs.router, prefix="/api/logs", tags=["Logs"])
-app.include_router(incidents.router, prefix="/api/incidents", tags=["Incidents"])
-app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
-app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
-app.include_router(healing.router, prefix="/api/healing", tags=["Auto-Healing"])
+app.include_router(metrics.router, prefix="/api/metrics", tags=["Metrics"], dependencies=[Depends(verify_api_key)])
+app.include_router(logs.router, prefix="/api/logs", tags=["Logs"], dependencies=[Depends(verify_api_key)])
+app.include_router(incidents.router, prefix="/api/incidents", tags=["Incidents"], dependencies=[Depends(verify_api_key)])
+app.include_router(ai.router, prefix="/api/ai", tags=["AI"], dependencies=[Depends(verify_api_key)])
+app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"], dependencies=[Depends(verify_api_key)])
+app.include_router(healing.router, prefix="/api/healing", tags=["Auto-Healing"], dependencies=[Depends(verify_api_key)])
 app.include_router(ws.router, tags=["WebSocket"])
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 @app.get("/")
 async def root():

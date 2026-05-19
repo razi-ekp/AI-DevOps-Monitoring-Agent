@@ -8,9 +8,20 @@ import asyncio
 import os
 import uuid
 from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
+import structlog
+from prometheus_client import Counter
 
 from app.core.state import store
+
+logger = structlog.get_logger()
+
+devops_healing_actions_total = Counter(
+    'devops_healing_actions_total',
+    'Total number of healing actions executed',
+    ['action', 'result'],
+)
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -41,7 +52,7 @@ def _guardrail_violation(service: str, action: str) -> str | None:
     if AUTOHEAL_ALLOWLIST and service not in AUTOHEAL_ALLOWLIST:
         return f"Service '{service}' is not in AUTOHEAL_SERVICE_ALLOWLIST."
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cutoff = now - timedelta(hours=1)
     while _ACTION_TIMELINE and _ACTION_TIMELINE[0] < cutoff:
         _ACTION_TIMELINE.popleft()
@@ -100,6 +111,11 @@ async def _execute_real_action(service: str, action: str) -> tuple[bool, str]:
     return False, f"unknown action '{action}'"
 
 
+async def execute_flush_cache(service: str) -> tuple[bool, str]:
+    """Placeholder for cache flush remediation actions."""
+    return False, "flush-cache remediation is not implemented"
+
+
 async def execute_action(
     *,
     service: str,
@@ -113,7 +129,7 @@ async def execute_action(
     Execute (or simulate) a remediation action and persist it into store.
     """
     violation = _guardrail_violation(service, action)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if violation:
         result = "ESCALATED"
         validated = False
@@ -148,6 +164,7 @@ async def execute_action(
         "confidence": confidence,
         "detail": detail,
     }
+    devops_healing_actions_total.labels(action=action, result=result).inc()
     store.add_healing_action(action_entry)
     if incident_id and incident_id != "manual":
         store.update_incident(

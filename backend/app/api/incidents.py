@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.core.broadcaster import broadcast
@@ -10,7 +10,7 @@ from app.core.state import store
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("")
 async def get_incidents(limit: int = Query(50, ge=1, le=200)):
     return {"incidents": store.get_incidents(limit)}
 
@@ -44,7 +44,7 @@ async def inject_incident(req: InjectIncidentRequest):
 
     incident = {
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "service": req.service.strip(),
         "severity": severity,
         "description": req.description.strip(),
@@ -55,7 +55,7 @@ async def inject_incident(req: InjectIncidentRequest):
         "logs_analysis": "Manual incident injection",
         "alerts_sent": store.alert_channels,
     }
-    store.add_incident(incident)
+    await store.add_incident(incident)
     await broadcast({"type": "incident", "data": incident})
 
     alert = None
@@ -68,7 +68,7 @@ async def inject_incident(req: InjectIncidentRequest):
             "message": incident["description"],
             "channels": store.alert_channels,
         }
-        store.add_alert(alert)
+        await store.add_alert(alert)
         await broadcast({"type": "alert", "data": alert})
 
     return {"ok": True, "incident": incident, "alert": alert}

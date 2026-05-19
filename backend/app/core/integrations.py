@@ -5,11 +5,9 @@ Falls back gracefully when providers are unavailable.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import httpx
-
 
 SERVICES = [
     "api-gateway",
@@ -35,12 +33,15 @@ PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://localhost:9090").rstrip("/"
 LOKI_URL = os.getenv("LOKI_URL", "http://localhost:3100").rstrip("/")
 LOKI_QUERY = os.getenv("LOKI_QUERY", '{job="varlogs"}')
 LOKI_LABEL_SERVICE_KEY = os.getenv("LOKI_LABEL_SERVICE_KEY", "app")
+# Optional Grafana Cloud / Loki auth
+LOKI_API_KEY = os.getenv("LOKI_API_KEY", "").strip()
+GRAFANA_ORG = os.getenv("GRAFANA_ORG", "").strip()
 
 METRICS_TIMEOUT_SECONDS = float(os.getenv("REAL_METRICS_TIMEOUT_SECONDS", "10"))
 LOGS_TIMEOUT_SECONDS = float(os.getenv("REAL_LOGS_TIMEOUT_SECONDS", "10"))
 
 
-async def _prom_query(client: httpx.AsyncClient, query: str) -> Optional[float]:
+async def _prom_query(client: httpx.AsyncClient, query: str) -> float | None:
     response = await client.get(
         f"{PROMETHEUS_URL}/api/v1/query",
         params={"query": query},
@@ -57,7 +58,7 @@ async def _prom_query(client: httpx.AsyncClient, query: str) -> Optional[float]:
         return None
 
 
-async def fetch_prometheus_metric(previous: Optional[dict] = None) -> Optional[dict]:
+async def fetch_prometheus_metric(previous: dict | None = None) -> dict | None:
     """
     Return a metric point in the same shape as simulator output, or None.
     """
@@ -95,8 +96,8 @@ async def fetch_prometheus_metric(previous: Optional[dict] = None) -> Optional[d
         }
 
     return {
-        "id": f"metric-{datetime.now(timezone.utc).timestamp()}",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "id": f"metric-{datetime.now(UTC).timestamp()}",
+        "timestamp": datetime.now(UTC).isoformat(),
         "cpu": round(cpu or 0.0, 2),
         "memory": round(memory or 0.0, 2),
         "network": round(network or 0.0, 2),
@@ -109,7 +110,7 @@ def _to_iso_utc(ns: str) -> str:
     # Loki timestamp in nanoseconds as string.
     value = int(ns)
     seconds = value / 1_000_000_000
-    return datetime.fromtimestamp(seconds, tz=timezone.utc).replace(tzinfo=None).isoformat()
+    return datetime.fromtimestamp(seconds, tz=UTC).replace(tzinfo=None).isoformat()
 
 
 def _level_from_line(line: str) -> str:
@@ -124,9 +125,9 @@ def _level_from_line(line: str) -> str:
 
 
 async def fetch_loki_logs(
-    since_ns: Optional[int] = None,
+    since_ns: int | None = None,
     limit: int = 100,
-) -> tuple[list[dict], Optional[int]]:
+) -> tuple[list[dict], int | None]:
     params = {
         "query": LOKI_QUERY,
         "limit": limit,
@@ -135,7 +136,15 @@ async def fetch_loki_logs(
     if since_ns:
         params["start"] = str(since_ns + 1)
 
-    async with httpx.AsyncClient() as client:
+    headers = {}
+    if LOKI_API_KEY:
+        # Grafana Cloud accepts Bearer tokens for Loki API access
+        headers["Authorization"] = f"Bearer {LOKI_API_KEY}"
+    if GRAFANA_ORG:
+        # Optional org header used by some Grafana Cloud setups
+        headers["X-Scope-OrgID"] = GRAFANA_ORG
+
+    async with httpx.AsyncClient(headers=headers) as client:
         response = await client.get(
             f"{LOKI_URL}/loki/api/v1/query_range",
             params=params,

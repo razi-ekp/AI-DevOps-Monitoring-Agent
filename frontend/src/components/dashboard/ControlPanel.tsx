@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Card } from '../ui';
+import { ControlPanelProps } from '../../types';
 import { useApi } from '../../hooks/useDevOpsData';
 
 const SERVICES = ['api-gateway', 'auth-service', 'db-proxy', 'worker-queue', 'ml-inference', 'cache-layer'];
-const ACTIONS  = ['restart', 'scale', 'rollback', 'flush-cache'];
+const ACTIONS = ['restart', 'scale', 'rollback', 'flush-cache'];
 
-export default function ControlPanel({ autoHeal, onToggleHeal }) {
+export default function ControlPanel({ autoHeal, onToggleHeal }: ControlPanelProps) {
   const { post } = useApi();
-  const [selSvc, setSelSvc]     = useState(SERVICES[0]);
+  const [selSvc, setSelSvc] = useState(SERVICES[0]);
   const [selAction, setSelAction] = useState(ACTIONS[0]);
   const [feedback, setFeedback] = useState('');
 
@@ -15,10 +16,10 @@ export default function ControlPanel({ autoHeal, onToggleHeal }) {
     try {
       await post('/api/healing/manual', { service: selSvc, action: selAction });
       setFeedback(`✓ ${selAction} triggered on ${selSvc}`);
-      setTimeout(() => setFeedback(''), 3000);
+      window.setTimeout(() => setFeedback(''), 3000);
     } catch {
       setFeedback('✗ Action failed');
-      setTimeout(() => setFeedback(''), 3000);
+      window.setTimeout(() => setFeedback(''), 3000);
     }
   };
 
@@ -26,7 +27,9 @@ export default function ControlPanel({ autoHeal, onToggleHeal }) {
     try {
       await post('/api/healing/toggle', { enabled: !autoHeal });
       onToggleHeal(!autoHeal);
-    } catch {}
+    } catch {
+      // ignore
+    }
   };
 
   return (
@@ -48,39 +51,54 @@ export default function ControlPanel({ autoHeal, onToggleHeal }) {
           <select
             className="log-filter-select"
             value={selSvc}
-            onChange={e => setSelSvc(e.target.value)}
+            onChange={(e) => setSelSvc(e.target.value)}
             style={{ flex: 1 }}
           >
-            {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+            {SERVICES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
           </select>
-          <select
-            className="log-filter-select"
-            value={selAction}
-            onChange={e => setSelAction(e.target.value)}
-          >
-            {ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+          <select className="log-filter-select" value={selAction} onChange={(e) => setSelAction(e.target.value)}>
+            {ACTIONS.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
           </select>
         </div>
 
         <button
           onClick={triggerManual}
           style={{
-            background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.3)',
-            borderRadius: 6, color: 'var(--accent-cyan)', padding: '8px 16px',
-            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
-            cursor: 'pointer', transition: 'all 0.15s',
+            background: 'rgba(34,211,238,0.1)',
+            border: '1px solid rgba(34,211,238,0.3)',
+            borderRadius: 6,
+            color: 'var(--accent-cyan)',
+            padding: '8px 16px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.15s',
           }}
         >
           ▶ Execute Action
         </button>
 
         {feedback && (
-          <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: 11,
-            color: feedback.startsWith('✓') ? '#22c55e' : '#ef4444',
-            padding: '6px 10px', background: 'rgba(255,255,255,0.03)',
-            borderRadius: 4, border: '1px solid var(--border)',
-          }}>
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              color: feedback.startsWith('✓') ? '#22c55e' : '#ef4444',
+              padding: '6px 10px',
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: 4,
+              border: '1px solid var(--border)',
+            }}
+          >
             {feedback}
           </div>
         )}

@@ -1,8 +1,9 @@
-import { Card, Badge, formatTime, truncate } from '../ui';
+import { Badge, Card, formatTime, truncate } from '../ui';
+import { HealingActionsPanelProps } from '../../types';
 
-const RESULT_COLOR = { RESOLVED: '#22c55e', ESCALATED: '#a78bfa', FAILED: '#ef4444' };
+const RESULT_COLOR: Record<string, string> = { RESOLVED: '#22c55e', ESCALATED: '#a78bfa', FAILED: '#ef4444' };
 
-export default function HealingActionsPanel({ actions }) {
+export default function HealingActionsPanel({ actions }: HealingActionsPanelProps) {
   return (
     <Card title="Auto-Healing Engine" accent="green">
       <div className="healing-list">
@@ -11,7 +12,7 @@ export default function HealingActionsPanel({ actions }) {
             No healing actions triggered yet
           </div>
         )}
-        {actions.map(a => (
+        {actions.map((a) => (
           <div key={a.id} className="healing-item">
             <div className="healing-action-name">⚡ {a.action}</div>
             <div className="healing-why">

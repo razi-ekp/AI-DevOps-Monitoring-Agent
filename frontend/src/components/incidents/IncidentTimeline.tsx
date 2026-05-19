@@ -1,6 +1,7 @@
 import { Card, Badge, formatTime, truncate } from '../ui';
+import { Incident, IncidentTimelineProps } from '../../types';
 
-export default function IncidentTimeline({ incidents }) {
+export default function IncidentTimeline({ incidents }: IncidentTimelineProps) {
   return (
     <Card title="Incident Timeline" accent="red">
       <div className="incident-list">
@@ -9,7 +10,7 @@ export default function IncidentTimeline({ incidents }) {
             ✓ No incidents detected
           </div>
         )}
-        {incidents.map(inc => (
+        {incidents.map((inc) => (
           <div key={inc.id} className={`incident-item sev-${inc.severity}`}>
             <div className="incident-header">
               <span className="incident-svc">{inc.service}</span>
@@ -25,7 +26,8 @@ export default function IncidentTimeline({ incidents }) {
             )}
             {inc.action_taken && (
               <div style={{ fontSize: 11, color: '#22c55e', marginBottom: 4 }}>
-                <span style={{ fontFamily: 'var(--font-mono)' }}>→ </span>{inc.action_taken}
+                <span style={{ fontFamily: 'var(--font-mono)' }}>→ </span>
+                {inc.action_taken}
               </div>
             )}
             <div className="incident-meta">

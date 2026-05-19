@@ -6,3 +6,6 @@ pydantic>=2.11,<3
 python-dotenv>=1.0,<2
 redis>=5,<6
 slowapi>=0.1.9
+structlog>=24.0,<25
+prometheus-fastapi-instrumentator>=7.0,<8
+prometheus-client>=0.16,<0.17

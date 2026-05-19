@@ -1,11 +1,19 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+import os
+
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+
 from app.core.broadcaster import register, unregister
 
 router = APIRouter()
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, token: str = Query(default="")):
+    expected = os.getenv("API_SECRET_KEY", "").strip()
+    if expected and token != expected:
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
     register(websocket)
     try:

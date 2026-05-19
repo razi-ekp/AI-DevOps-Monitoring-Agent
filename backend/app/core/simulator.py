@@ -6,12 +6,14 @@ Background engine:
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 import random
 import uuid
 from collections import defaultdict, deque
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
+import structlog
+from prometheus_client import Counter
 
 from app.core.broadcaster import broadcast
 from app.core.integrations import (
@@ -23,6 +25,14 @@ from app.core.integrations import (
 from app.core.notifications import send_incident_alert_email, should_send_email_for_alert
 from app.core.remediation import execute_action
 from app.core.state import store
+
+logger = structlog.get_logger()
+
+devops_incidents_total = Counter(
+    'devops_incidents_total',
+    'Total number of incidents created',
+    ['severity', 'service'],
+)
 
 SERVICES = [
     "api-gateway",
@@ -91,7 +101,6 @@ _net = 120.0
 _last_loki_ns = None
 _error_windows = defaultdict(deque)  # service -> timestamps
 _incident_cooldowns = {}  # (service, description) -> datetime
-logger = logging.getLogger(__name__)
 
 
 def _next_metric():
@@ -101,7 +110,7 @@ def _next_metric():
     _net = max(0, _net + random.uniform(-20, 28))
     return {
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "cpu": round(_cpu, 2),
         "memory": round(_mem, 2),
         "network": round(_net, 2),
@@ -140,7 +149,7 @@ def _incident_allowed(service: str, description: str, now: datetime) -> bool:
 
 
 async def _emit_incident_from_log(entry: dict):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if entry["level"] not in {"ERROR", "CRITICAL"}:
         return
 
@@ -175,7 +184,7 @@ async def _emit_incident_from_metric(metric: dict):
     if not ENABLE_METRIC_INCIDENTS:
         return
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cpu = float(metric.get("cpu", 0) or 0)
     memory = float(metric.get("memory", 0) or 0)
 
@@ -231,7 +240,8 @@ async def _emit_incident_from_metric(metric: dict):
 
 
 async def _publish_incident_and_alert(incident: dict):
-    store.add_incident(incident)
+    devops_incidents_total.labels(severity=incident["severity"], service=incident["service"]).inc()
+    await store.add_incident(incident)
     await broadcast({"type": "incident", "data": incident})
 
     alert = {
@@ -242,7 +252,7 @@ async def _publish_incident_and_alert(incident: dict):
         "message": incident["description"],
         "channels": store.alert_channels,
     }
-    store.add_alert(alert)
+    await store.add_alert(alert)
     await broadcast({"type": "alert", "data": alert})
     if "email" in {ch.lower() for ch in store.alert_channels} and should_send_email_for_alert(incident["severity"]):
         asyncio.create_task(send_incident_alert_email(alert=alert, incident=incident))
@@ -254,12 +264,12 @@ async def _emit_simulated_log():
     template = random.choice(LOG_TEMPLATES[level])
     entry = {
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "level": level,
         "service": service,
         "message": template(service),
     }
-    store.add_log(entry)
+    await store.add_log(entry)
     await broadcast({"type": "log", "data": entry})
 
     if level in ("ERROR", "CRITICAL") and random.random() < SIMULATOR_INCIDENT_PROBABILITY:
@@ -271,7 +281,7 @@ async def _emit_real_logs():
     try:
         logs, latest_ns = await fetch_loki_logs(since_ns=_last_loki_ns, limit=100)
     except Exception as exc:
-        logger.warning("[loki] %s", exc)
+        logger.warning("loki_fetch_failed", error=str(exc))
         return
 
     _last_loki_ns = latest_ns
@@ -288,14 +298,14 @@ async def _emit_metric():
         try:
             metric = await fetch_prometheus_metric(previous=previous)
         except Exception as exc:
-            logger.warning("[prometheus] %s", exc)
+            logger.warning("prometheus_fetch_failed", error=str(exc))
             metric = None
         if metric is None:
             metric = _next_metric()
     else:
         metric = _next_metric()
 
-    store.add_metric(metric)
+    await store.add_metric(metric)
     await broadcast({"type": "metric", "data": metric})
     await _emit_incident_from_metric(metric)
 
@@ -314,7 +324,7 @@ async def start_simulator():
 
             tick += 1
         except Exception as exc:
-            logger.exception("[simulator error] %s", exc)
+            logger.exception("simulator_error", error=str(exc))
 
         await asyncio.sleep(SIMULATOR_TICK_SECONDS)
 
@@ -347,7 +357,7 @@ async def _heal(incident: dict):
     result = random.choices(["RESOLVED", "RESOLVED", "ESCALATED"], weights=[70, 20, 10])[0]
     action_entry = {
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "incident_id": incident["id"],
         "service": incident["service"],
         "action": f"Auto: {action}",
@@ -356,8 +366,8 @@ async def _heal(incident: dict):
         "validated": result == "RESOLVED",
         "confidence": incident.get("confidence", 80.0),
     }
-    store.add_healing_action(action_entry)
-    store.update_incident(incident["id"], {"status": result, "action_taken": action})
+    await store.add_healing_action(action_entry)
+    await store.update_incident(incident["id"], {"status": result, "action_taken": action})
     await broadcast({"type": "healing", "data": action_entry})
     await broadcast({"type": "incident_update", "data": {"id": incident["id"], "status": result}})
 

@@ -1,29 +1,25 @@
-from typing import Optional
 import json
-import logging
 import os
 
 import httpx
+import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
-from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.state import store
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # Rate limiter: 5 requests per minute per IP
 limiter = Limiter(key_func=get_remote_address)
-router.state.limiter = limiter
 
 
 class AnalyzeRequest(BaseModel):
-    incident_id: Optional[str] = None
-    log_sample: Optional[str] = Field(default=None, max_length=6000)
+    incident_id: str | None = None
+    log_sample: str | None = Field(default=None, max_length=6000)
 
 
 def _to_gemini_contents(messages: list) -> list:
@@ -68,18 +64,18 @@ async def _call_gemini(system: str, messages: list, max_tokens: int = 1024) -> s
             resp.raise_for_status()
             data = resp.json()
     except httpx.TimeoutException as exc:
-        logger.warning("Gemini request timed out: %s", exc)
-        raise HTTPException(status_code=504, detail="AI analysis timed out. Please retry.")
+        logger.warning("gemini_timeout", error=str(exc))
+        raise HTTPException(status_code=504, detail="AI analysis timed out. Please retry.") from exc
     except httpx.HTTPStatusError as exc:
         status_code = exc.response.status_code if exc.response else "unknown"
-        logger.warning("Gemini HTTP error: status=%s", status_code)
-        raise HTTPException(status_code=502, detail="AI provider returned an error.")
+        logger.warning("gemini_http_error", status_code=status_code)
+        raise HTTPException(status_code=502, detail="AI provider returned an error.") from exc
     except httpx.RequestError as exc:
-        logger.warning("Gemini network error: %s", exc)
-        raise HTTPException(status_code=502, detail="Failed to reach AI provider.")
+        logger.warning("gemini_network_error", error=str(exc))
+        raise HTTPException(status_code=502, detail="Failed to reach AI provider.") from exc
     except ValueError as exc:
-        logger.warning("Gemini response parse error: %s", exc)
-        raise HTTPException(status_code=502, detail="AI provider returned malformed data.")
+        logger.warning("gemini_response_parse_error", error=str(exc))
+        raise HTTPException(status_code=502, detail="AI provider returned malformed data.") from exc
 
     candidates = data.get("candidates", [])
     if not candidates:

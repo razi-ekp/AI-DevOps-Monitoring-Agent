@@ -1,15 +1,16 @@
 import { useState, useMemo } from 'react';
 import { Card, Badge, formatTime } from '../ui';
+import { LogEntry, LogsViewerProps } from '../../types';
 
 const SERVICES = ['all', 'api-gateway', 'auth-service', 'db-proxy', 'worker-queue', 'ml-inference', 'cache-layer'];
-const LEVELS   = ['all', 'INFO', 'WARN', 'ERROR', 'CRITICAL'];
+const LEVELS = ['all', 'INFO', 'WARN', 'ERROR', 'CRITICAL'];
 
-export default function LogsViewer({ logs }) {
-  const [svcFilter, setSvcFilter]   = useState('all');
-  const [lvlFilter, setLvlFilter]   = useState('all');
+export default function LogsViewer({ logs }: LogsViewerProps) {
+  const [svcFilter, setSvcFilter] = useState('all');
+  const [lvlFilter, setLvlFilter] = useState('all');
 
   const filtered = useMemo(() => {
-    return logs.filter(l => {
+    return logs.filter((l) => {
       if (svcFilter !== 'all' && l.service !== svcFilter) return false;
       if (lvlFilter !== 'all' && l.level !== lvlFilter) return false;
       return true;
@@ -17,9 +18,10 @@ export default function LogsViewer({ logs }) {
   }, [logs, svcFilter, lvlFilter]);
 
   const summary = useMemo(() => {
-    const counts = { INFO: 0, WARN: 0, ERROR: 0, CRITICAL: 0 };
-    const serviceCounts = {};
-    filtered.forEach(log => {
+    const counts: Record<string, number> = { INFO: 0, WARN: 0, ERROR: 0, CRITICAL: 0 };
+    const serviceCounts: Record<string, number> = {};
+
+    filtered.forEach((log) => {
       counts[log.level] = (counts[log.level] || 0) + 1;
       serviceCounts[log.service] = (serviceCounts[log.service] || 0) + 1;
     });
@@ -33,15 +35,15 @@ export default function LogsViewer({ logs }) {
       }
     });
 
-    const lastError = filtered.find(log => log.level === 'ERROR' || log.level === 'CRITICAL');
+    const lastError = filtered.find((log) => log.level === 'ERROR' || log.level === 'CRITICAL');
     return { counts, busiestService, lastError };
   }, [filtered]);
 
   const intel = useMemo(() => {
-    const patternCounts = {};
-    const serviceErrorCounts = {};
+    const patternCounts: Record<string, number> = {};
+    const serviceErrorCounts: Record<string, number> = {};
 
-    filtered.forEach(log => {
+    filtered.forEach((log) => {
       const shortMsg = (log.message?.split(': ').slice(1).join(': ') || log.message || 'unknown').trim();
       patternCounts[shortMsg] = (patternCounts[shortMsg] || 0) + 1;
       if (log.level === 'ERROR' || log.level === 'CRITICAL') {
@@ -65,18 +67,26 @@ export default function LogsViewer({ logs }) {
   return (
     <Card title="Live Log Stream" accent="cyan" className="span-2 log-card">
       <div className="log-filters">
-        <select className="log-filter-select" value={svcFilter} onChange={e => setSvcFilter(e.target.value)}>
-          {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+        <select className="log-filter-select" value={svcFilter} onChange={(e) => setSvcFilter(e.target.value)}>
+          {SERVICES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
-        <select className="log-filter-select" value={lvlFilter} onChange={e => setLvlFilter(e.target.value)}>
-          {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+        <select className="log-filter-select" value={lvlFilter} onChange={(e) => setLvlFilter(e.target.value)}>
+          {LEVELS.map((l) => (
+            <option key={l} value={l}>
+              {l}
+            </option>
+          ))}
         </select>
         <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
           {filtered.length} entries
         </span>
       </div>
       <div className="log-list">
-        {filtered.slice(0, 80).map(log => (
+        {filtered.slice(0, 80).map((log) => (
           <div key={log.id} className={`log-entry level-${log.level}`}>
             <span className="log-time">{formatTime(log.timestamp)}</span>
             <Badge label={log.level} variant={log.level} />
@@ -94,9 +104,7 @@ export default function LogsViewer({ logs }) {
         <div className="log-summary-item">
           <div className="log-summary-label">Error Signals</div>
           <div className="log-summary-value">{summary.counts.ERROR + summary.counts.CRITICAL}</div>
-          <div className="log-summary-meta">
-            WARN {summary.counts.WARN} · INFO {summary.counts.INFO}
-          </div>
+          <div className="log-summary-meta">WARN {summary.counts.WARN} · INFO {summary.counts.INFO}</div>
         </div>
         <div className="log-summary-item">
           <div className="log-summary-label">Busiest Service</div>
@@ -115,12 +123,14 @@ export default function LogsViewer({ logs }) {
         <div className="log-intel-panel">
           <div className="log-intel-title">Recurring Patterns</div>
           <div className="log-intel-list">
-            {intel.topPatterns.length > 0 ? intel.topPatterns.map(item => (
-              <div className="log-intel-item" key={`pattern-${item.message}`}>
-                <span className="log-intel-text">{item.message}</span>
-                <span className="log-intel-pill">{item.count}</span>
-              </div>
-            )) : (
+            {intel.topPatterns.length > 0 ? (
+              intel.topPatterns.map((item) => (
+                <div className="log-intel-item" key={`pattern-${item.message}`}>
+                  <span className="log-intel-text">{item.message}</span>
+                  <span className="log-intel-pill">{item.count}</span>
+                </div>
+              ))
+            ) : (
               <div className="log-intel-empty">No pattern data for current filter</div>
             )}
           </div>
@@ -128,12 +138,14 @@ export default function LogsViewer({ logs }) {
         <div className="log-intel-panel">
           <div className="log-intel-title">Noisy Services</div>
           <div className="log-intel-list">
-            {intel.noisyServices.length > 0 ? intel.noisyServices.map(item => (
-              <div className="log-intel-item" key={`service-${item.service}`}>
-                <span className="log-intel-text log-intel-service">{item.service}</span>
-                <span className="log-intel-pill">{item.count}</span>
-              </div>
-            )) : (
+            {intel.noisyServices.length > 0 ? (
+              intel.noisyServices.map((item) => (
+                <div className="log-intel-item" key={`service-${item.service}`}>
+                  <span className="log-intel-text log-intel-service">{item.service}</span>
+                  <span className="log-intel-pill">{item.count}</span>
+                </div>
+              ))
+            ) : (
               <div className="log-intel-empty">No active error signals</div>
             )}
           </div>
